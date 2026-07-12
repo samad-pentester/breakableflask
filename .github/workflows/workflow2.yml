@@ -80,34 +80,46 @@ jobs:
           name: bandit-report
           path: bandit-report.html
       
-      # perfroming the sca and sbom 
-            # --- SCA + SBOM: Syft + Grype ---
+      # --- SCA + SBOM: Syft + Grype (HTML reports) ---
 
       - name: Install Syft
         run: |
           curl -sSfL https://raw.githubusercontent.com/anchore/syft/main/install.sh \
             | sh -s -- -b /usr/local/bin
 
-      - name: Generate SBOM with Syft
+      - name: Generate SBOM with Syft (SPDX JSON)
         run: |
           # Generate SBOM for the current repo directory in SPDX JSON format
           syft dir:. -o spdx-json > sbom.json
+
+      - name: Install sbom-report (HTML SBOM renderer)
+        run: |
+          npm install -g @amberfly/sbom-report
+
+      - name: Generate SBOM HTML report
+        run: |
+          # Convert SBOM JSON into a self-contained HTML report
+          sbom-report sbom.json -o sbom-report.html
 
       - name: Install Grype
         run: |
           curl -sSfL https://raw.githubusercontent.com/anchore/grype/main/install.sh \
             | sh -s -- -b /usr/local/bin
 
-      - name: Scan SBOM with Grype
+      - name: Download Grype HTML template
         run: |
-          # Scan the SBOM for vulnerabilities
-          # `--fail-on` can be tightened later; for now we keep it soft with || true
-          grype sbom:sbom.json -o json > grype-report.json || true
+          curl -sSfL https://raw.githubusercontent.com/anchore/grype/main/templates/html.tmpl \
+            -o grype-html.tmpl
 
-      - name: Upload SBOM and SCA reports
+      - name: Scan SBOM with Grype and produce HTML
+        run: |
+          # Scan the SBOM for vulnerabilities and render HTML via template
+          grype sbom:sbom.json -o template -t grype-html.tmpl > grype-report.html || true
+
+      - name: Upload SBOM and SCA HTML reports
         uses: actions/upload-artifact@v4
         with:
-          name: sbom-and-sca-reports
+          name: sbom-and-sca-html-reports
           path: |
-            sbom.json
-            grype-report.json 
+            sbom-report.html
+            grype-report.html
