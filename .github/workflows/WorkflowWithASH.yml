@@ -41,57 +41,51 @@ jobs:
           # Simple “build” sanity: compile all Python files
           python -m compileall .
 
-    # -------------------------
-  # Job 2: TEST STAGE (ASH-only security scan)
+  # -------------------------
+  # Job 2: TEST STAGE (ASH security scan in container mode)
   # -------------------------
   test:
-    runs-on: ubuntu-latest          # Use GitHub-hosted Ubuntu runner for tests
-    needs: build                    # Only run ASH if the build job succeeded
+    runs-on: ubuntu-latest              # Use GitHub-hosted Ubuntu runner
+    needs: build                        # Only run ASH if the build job succeeded
 
     steps:
-      # Step 1: Get the repository code into this test runner
+      # Step 1: Checkout the vulnerable application code
       - name: Checkout repository
-        uses: actions/checkout@v4   # Each job needs its own checkout
+        uses: actions/checkout@v4       # Each job needs its own checkout
 
-      # Step 2: Set up Python runtime (used by ASH-integrated scanners like Bandit/Semgrep)
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'    # Keep test environment aligned with build
-
-      # Step 3: Install application dependencies
-      - name: Install dependencies
+      # Step 2: Build a local ASH container image from the cloned repo
+      # This image will contain the ASH CLI and all its dependencies.
+      - name: Build ASH Docker image
         run: |
-          # Upgrade pip to the latest version
-          python -m pip install --upgrade pip
-          # Install app dependencies if requirements.txt is present
-          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
-
-      # Step 4: Download ASH CLI (local script, NOT container mode)
-      - name: Download ASH
-        run: |
-          # Clone the ASH repository from GitHub
+          # Clone the ASH repository which contains the Dockerfile
           git clone https://github.com/awslabs/automated-security-helper.git
           cd automated-security-helper
-          # Copy the ASH script into the workspace root
-          cp ash ../ash
-          cd ..
-          # Make the ASH script executable
-          chmod +x ash
+          # Build a local Docker image named 'automated-security-helper:non-root'
+          # using the ASH Dockerfile in that repo.
+          docker build -t automated-security-helper:non-root .
 
-      # Step 5: Run ASH security scan in local mode
-      - name: Run ASH security scan
-        env:
-          ASH_OCI_RUNNER: ""        # Force ASH to not use Docker as OCI runner
+      # Step 3: Prepare an output directory on the GitHub runner
+      - name: Prepare ASH output directory
         run: |
-          # Create explicit output directory for ASH results
+          # Create host-side directory where ASH will write its results
           mkdir -p .ash/ash_output
-          # Run ASH against the current repo, write results into .ash/ash_output
-          ./ash --source-dir "$(pwd)" --output-dir ".ash/ash_output" || true
 
-      # Step 6: Upload ASH HTML report as an artifact
+      # Step 4: Run ASH inside the Docker container
+      - name: Run ASH security scan (container mode)
+        run: |
+          # Run the ASH container image and mount:
+          # - The application repo into /workspace
+          # - The output directory into /ash_output
+          # Then execute 'ash' inside the container against /workspace.
+          docker run --rm \
+            -v "$(pwd)":/workspace \
+            -v "$(pwd)/.ash/ash_output":/ash_output \
+            automated-security-helper:non-root \
+            ash --source-dir /workspace --output-dir /ash_output || true
+
+      # Step 5: Upload ASH HTML report as a GitHub Actions artifact
       - name: Upload ASH HTML report
         uses: actions/upload-artifact@v4
         with:
           name: ash-html-report
-          path: .ash/ash_output/reports/ash.html    # Path where ASH writes its HTML summary
+          path: .ash/ash_output/reports/ash.html    # ASH writes HTML summary here inside /ash_output  
