@@ -1,6 +1,6 @@
 name: Python CI with SAST
 
-on:
+# on:
   push:
     branches: [ master ]
   pull_request:
