@@ -1,0 +1,104 @@
+# Name of the overall workflow, shown in the GitHub Actions UI
+name: Python Build and Test with SAST
+
+# When to trigger this workflow
+#  on:
+    push:
+      branches: [ master ]        # Run on any push to the master branch
+    pull_request:
+      branches: [ master ]        # Run on any PR targeting the master branch
+
+# The workflow has two jobs (stages): build and test
+jobs:
+  # -------------------------
+  # Job 1: BUILD STAGE
+  # -------------------------
+  build:
+    runs-on: ubuntu-latest      # Use GitHub-hosted Ubuntu runner
+
+    steps:
+      # Step 1: Get the repository code into the runner
+      - name: Checkout repository
+        uses: actions/checkout@v4   # Official GitHub Action to clone your repo
+
+      # Step 2: Install a specific Python version on the runner
+      - name: Set up Python
+        uses: actions/setup-python@v5   # Official Action to set up Python
+        with:
+          python-version: '3.11'        # Use Python 3.11 (adjust if app needs another)
+
+      # Step 3: Install application dependencies
+      - name: Install dependencies
+        run: |
+          # Upgrade pip to the latest version
+          python -m pip install --upgrade pip
+          # If requirements.txt exists, install listed packages
+          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+
+      # Step 4: compile all python files
+      - name: Basic build check
+        run: |
+          # Simple “build” sanity: compile all Python files
+          python -m compileall .
+
+  # -------------------------
+  # Job 2: TEST STAGE
+  # -------------------------
+  test:
+    runs-on: ubuntu-latest      # Use GitHub-hosted Ubuntu runner for tests
+    needs: build                # Do not run tests unless the build job succeeded
+
+    steps:
+      # Step 1: Get the same repository code into this test runner
+      - name: Checkout repository
+        uses: actions/checkout@v4   # Each job needs its own checkout
+
+      # Step 2: Install the same Python version for consistency
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'    # Keep test environment aligned with build
+
+      # Step 3: Install dependencies again for this job
+      - name: Install dependencies
+        run: |
+          # Upgrade pip
+          python -m pip install --upgrade pip
+          # Install app dependencies if requirements.txt is present
+          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+# Step 2: Set up Python (ASH will run Python-based scanners like Bandit/Semgrep etc.)
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      # Step 3: Install dependencies for the app (so ASH SAST/SCA tools see a realistic environment)
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+
+      # Step 4: Download ASH CLI
+      - name: Download ASH
+        run: |
+          git clone https://github.com/awslabs/automated-security-helper.git
+          cd automated-security-helper
+          cp ash ../ash
+          cd ..
+          chmod +x ash
+
+      # Step 5: Run ASH security scan (SAST + SCA + IaC orchestration)
+      - name: Run ASH security scan
+        run: |
+          # Create explicit output directory for ASH results
+          mkdir -p .ash/ash_output
+          # Run ASH against the current repo, write results to .ash/ash_output
+          # `|| true` keeps the job green while you explore the report
+          ./ash --source-dir $(pwd) --output-dir .ash/ash_output || true
+
+      # Step 6: Upload ASH HTML report as artifact
+      - name: Upload ASH HTML report
+        uses: actions/upload-artifact@v4
+        with:
+          name: ash-html-report
+          path: .ash/ash_output/reports/ash.html
