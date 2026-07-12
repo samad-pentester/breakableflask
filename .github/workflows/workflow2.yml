@@ -35,14 +35,11 @@ jobs:
           # If requirements.txt exists, install listed packages
           if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
 
-      # Step 4: Run SAST (Bandit) as part of the build stage
-      - name: Run Bandit SAST (build stage)
+      # Step 4: compile all python files
+      - name: Basic build check
         run: |
-          # Install Bandit (Python security scanner) into this environment
-          pip install bandit
-          # Scan the entire repo recursively for security issues
-          # If Bandit finds issues and exits with non-zero status, the BUILD job fails.
-            bandit -r . || true
+          # Simple “build” sanity: compile all Python files
+          python -m compileall .
 
   # -------------------------
   # Job 2: TEST STAGE
@@ -70,10 +67,8 @@ jobs:
           # Install app dependencies if requirements.txt is present
           if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
 
-      # Step 4: Run tests or at least a basic sanity check
-      - name: Run tests / basic check
+      # Here is Bandit now, inside the TEST stage
+      - name: Run Bandit SAST (test stage)
         run: |
-          # Simple check: compile all Python files to bytecode to catch syntax errors
-          python -m compileall .
-          # Later, replace this with your real test command, e.g.:
-          # pytest
+          pip install bandit
+          bandit -r . 
