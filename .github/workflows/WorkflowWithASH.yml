@@ -73,12 +73,8 @@ jobs:
       # Step 4: Run ASH inside the Docker container
       - name: Run ASH security scan (container mode)
         run: |
-          # Run the ASH container image and mount:
-          # - The application repo into /workspace
-          # - The output directory into /ash_output
-          # Then execute 'ash' inside the container against /workspace.
           docker run --rm \
-            --user root \ 
+            --user root \
             -v "$(pwd)":/workspace \
             -v "$(pwd)/.ash/ash_output":/ash_output \
             automated-security-helper:non-root \
