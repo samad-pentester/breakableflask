@@ -1,0 +1,79 @@
+# Name of the overall workflow, shown in the GitHub Actions UI
+name: Python Build and Test with SAST
+
+# When to trigger this workflow
+on:
+  push:
+    branches: [ master ]        # Run on any push to the master branch
+  pull_request:
+    branches: [ master ]        # Run on any PR targeting the master branch
+
+# The workflow has two jobs (stages): build and test
+jobs:
+  # -------------------------
+  # Job 1: BUILD STAGE
+  # -------------------------
+  build:
+    runs-on: ubuntu-latest      # Use GitHub-hosted Ubuntu runner
+
+    steps:
+      # Step 1: Get the repository code into the runner
+      - name: Checkout repository
+        uses: actions/checkout@v4   # Official GitHub Action to clone your repo
+
+      # Step 2: Install a specific Python version on the runner
+      - name: Set up Python
+        uses: actions/setup-python@v5   # Official Action to set up Python
+        with:
+          python-version: '3.11'        # Use Python 3.11 (adjust if app needs another)
+
+      # Step 3: Install application dependencies
+      - name: Install dependencies
+        run: |
+          # Upgrade pip to the latest version
+          python -m pip install --upgrade pip
+          # If requirements.txt exists, install listed packages
+          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+
+      # Step 4: Run SAST (Bandit) as part of the build stage
+      - name: Run Bandit SAST (build stage)
+        run: |
+          # Install Bandit (Python security scanner) into this environment
+          pip install bandit
+          # Scan the entire repo recursively for security issues
+          # If Bandit finds issues and exits with non-zero status, the BUILD job fails.
+          bandit -r .
+
+  # -------------------------
+  # Job 2: TEST STAGE
+  # -------------------------
+  test:
+    runs-on: ubuntu-latest      # Use GitHub-hosted Ubuntu runner for tests
+    needs: build                # Do not run tests unless the build job succeeded
+
+    steps:
+      # Step 1: Get the same repository code into this test runner
+      - name: Checkout repository
+        uses: actions/checkout@v4   # Each job needs its own checkout
+
+      # Step 2: Install the same Python version for consistency
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'    # Keep test environment aligned with build
+
+      # Step 3: Install dependencies again for this job
+      - name: Install dependencies
+        run: |
+          # Upgrade pip
+          python -m pip install --upgrade pip
+          # Install app dependencies if requirements.txt is present
+          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+
+      # Step 4: Run tests or at least a basic sanity check
+      - name: Run tests / basic check
+        run: |
+          # Simple check: compile all Python files to bytecode to catch syntax errors
+          python -m compileall .
+          # Later, replace this with your real test command, e.g.:
+          # pytest
