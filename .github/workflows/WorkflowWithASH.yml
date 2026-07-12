@@ -81,11 +81,12 @@ jobs:
 
       # Step 5: Run ASH security scan in local mode
       - name: Run ASH security scan
+        env:
+          ASH_OCI_RUNNER: ""        # Force ASH to not use Docker as OCI runner
         run: |
           # Create explicit output directory for ASH results
           mkdir -p .ash/ash_output
           # Run ASH against the current repo, write results into .ash/ash_output
-          # `|| true` ensures the job stays green while you explore findings
           ./ash --source-dir "$(pwd)" --output-dir ".ash/ash_output" || true
 
       # Step 6: Upload ASH HTML report as an artifact
