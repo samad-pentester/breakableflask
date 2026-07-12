@@ -73,8 +73,41 @@ jobs:
           pip install bandit
           bandit -r . -f html -o bandit-report.html  || true  # f for output file format & o for output file name
       
+      # here bandit will save all artifacts 
       - name: Upload Bandit report artifact
         uses: actions/upload-artifact@v4
         with:
           name: bandit-report
           path: bandit-report.html
+      
+      # perfroming the sca and sbom 
+            # --- SCA + SBOM: Syft + Grype ---
+
+      - name: Install Syft
+        run: |
+          curl -sSfL https://raw.githubusercontent.com/anchore/syft/main/install.sh \
+            | sh -s -- -b /usr/local/bin
+
+      - name: Generate SBOM with Syft
+        run: |
+          # Generate SBOM for the current repo directory in SPDX JSON format
+          syft dir:. -o spdx-json > sbom.json
+
+      - name: Install Grype
+        run: |
+          curl -sSfL https://raw.githubusercontent.com/anchore/grype/main/install.sh \
+            | sh -s -- -b /usr/local/bin
+
+      - name: Scan SBOM with Grype
+        run: |
+          # Scan the SBOM for vulnerabilities
+          # `--fail-on` can be tightened later; for now we keep it soft with || true
+          grype sbom:sbom.json -o json > grype-report.json || true
+
+      - name: Upload SBOM and SCA reports
+        uses: actions/upload-artifact@v4
+        with:
+          name: sbom-and-sca-reports
+          path: |
+            sbom.json
+            grype-report.json 
