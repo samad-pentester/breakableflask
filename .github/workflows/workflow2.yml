@@ -71,4 +71,10 @@ jobs:
       - name: Run Bandit SAST (test stage)
         run: |
           pip install bandit
-          bandit -r . || true
+          bandit -r . -f html -o bandit-report.html   # f for output file format & o for output file name
+      
+      - name: Upload Bandit report artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: bandit-report
+          path: bandit-report.html
