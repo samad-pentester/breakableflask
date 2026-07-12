@@ -1,5 +1,5 @@
 # Name of the overall workflow, shown in the GitHub Actions UI
-name: Python Build and Test with SAST
+name: Python Build and Test with ASH
 
 # When to trigger this workflow
 #  on:
