@@ -42,7 +42,7 @@ jobs:
           pip install bandit
           # Scan the entire repo recursively for security issues
           # If Bandit finds issues and exits with non-zero status, the BUILD job fails.
-          # bandit -r .
+            bandit -r . || true
 
   # -------------------------
   # Job 2: TEST STAGE
