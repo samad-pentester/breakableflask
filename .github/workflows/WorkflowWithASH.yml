@@ -41,64 +41,56 @@ jobs:
           # Simple “build” sanity: compile all Python files
           python -m compileall .
 
-  # -------------------------
-  # Job 2: TEST STAGE
+    # -------------------------
+  # Job 2: TEST STAGE (ASH-only security scan)
   # -------------------------
   test:
-    runs-on: ubuntu-latest      # Use GitHub-hosted Ubuntu runner for tests
-    needs: build                # Do not run tests unless the build job succeeded
+    runs-on: ubuntu-latest          # Use GitHub-hosted Ubuntu runner for tests
+    needs: build                    # Only run ASH if the build job succeeded
 
     steps:
-      # Step 1: Get the same repository code into this test runner
+      # Step 1: Get the repository code into this test runner
       - name: Checkout repository
         uses: actions/checkout@v4   # Each job needs its own checkout
 
-      # Step 2: Install the same Python version for consistency
+      # Step 2: Set up Python runtime (used by ASH-integrated scanners like Bandit/Semgrep)
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'    # Keep test environment aligned with build
 
-      # Step 3: Install dependencies again for this job
+      # Step 3: Install application dependencies
       - name: Install dependencies
         run: |
-          # Upgrade pip
+          # Upgrade pip to the latest version
           python -m pip install --upgrade pip
           # Install app dependencies if requirements.txt is present
           if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
-# Step 2: Set up Python (ASH will run Python-based scanners like Bandit/Semgrep etc.)
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
 
-      # Step 3: Install dependencies for the app (so ASH SAST/SCA tools see a realistic environment)
-      - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
-
-      # Step 4: Download ASH CLI
+      # Step 4: Download ASH CLI (local script, NOT container mode)
       - name: Download ASH
         run: |
+          # Clone the ASH repository from GitHub
           git clone https://github.com/awslabs/automated-security-helper.git
           cd automated-security-helper
+          # Copy the ASH script into the workspace root
           cp ash ../ash
           cd ..
+          # Make the ASH script executable
           chmod +x ash
 
-      # Step 5: Run ASH security scan (SAST + SCA + IaC orchestration)
+      # Step 5: Run ASH security scan in local mode
       - name: Run ASH security scan
         run: |
           # Create explicit output directory for ASH results
           mkdir -p .ash/ash_output
-          # Run ASH against the current repo, write results to .ash/ash_output
-          # `|| true` keeps the job green while you explore the report
-          ./ash --source-dir $(pwd) --output-dir .ash/ash_output || true
+          # Run ASH against the current repo, write results into .ash/ash_output
+          # `|| true` ensures the job stays green while you explore findings
+          ./ash --source-dir "$(pwd)" --output-dir ".ash/ash_output" || true
 
-      # Step 6: Upload ASH HTML report as artifact
+      # Step 6: Upload ASH HTML report as an artifact
       - name: Upload ASH HTML report
         uses: actions/upload-artifact@v4
         with:
           name: ash-html-report
-          path: .ash/ash_output/reports/ash.html
+          path: .ash/ash_output/reports/ash.html    # Path where ASH writes its HTML summary
